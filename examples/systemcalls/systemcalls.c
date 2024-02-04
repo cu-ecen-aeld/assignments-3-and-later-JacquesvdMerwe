@@ -1,4 +1,9 @@
 #include "systemcalls.h"
+#include <sys/wait.h>
+#include <sys/fcntl.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -16,6 +21,9 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
+    if (system(cmd) == -1) {
+        return false;
+    }
 
     return true;
 }
@@ -38,7 +46,7 @@ bool do_exec(int count, ...)
 {
     va_list args;
     va_start(args, count);
-    char * command[count+1];
+    char *command[count+1];
     int i;
     for(i=0; i<count; i++)
     {
@@ -49,6 +57,7 @@ bool do_exec(int count, ...)
     // and may be removed
     command[count] = command[count];
 
+
 /*
  * TODO:
  *   Execute a system command by calling fork, execv(),
@@ -58,10 +67,17 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
-
     va_end(args);
 
-    return true;
+    pid_t pid = fork();
+    if (pid == 0) {
+        if (execv(command[0], command)) {
+            exit(EXIT_FAILURE);
+        }
+    }
+    int status;
+    wait(&status);
+    return WEXITSTATUS(status) == 0;
 }
 
 /**
@@ -84,7 +100,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     // and may be removed
     command[count] = command[count];
 
-
+    va_end(args);
 /*
  * TODO
  *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
@@ -92,8 +108,17 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    int fd = open(outputfile, O_WRONLY | O_TRUNC | O_CREAT, 0644);
+    pid_t pid = fork();
+    if (pid == 0) {
+        dup2(fd, STDOUT_FILENO);
+        if (execv(command[0], command) == -1) {
+            exit(EXIT_FAILURE);
+        }
+    }
+    close(fd);
 
-    va_end(args);
-
-    return true;
+    int status;
+    wait(&status);
+    return WEXITSTATUS(status) == 0;
 }
